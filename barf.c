@@ -251,8 +251,9 @@ static void handle_button_press(xcb_generic_event_t *ev) {
 	xcb_button_press_event_t *e = (xcb_button_press_event_t *)ev;
 
 	for (int i = 0; i < LEN(blocks); i++) {
-		if (e->event_x > blocks[i].start && e->event_x < blocks[i].start + blocks[i].width) {
-			printf("block %d pressed.\n", i);
+		if (blocks[i].click && e->event_x > blocks[i].start &&
+				e->event_x < blocks[i].start + blocks[i].width) {
+			blocks[i].click(&blocks[i]);
 		}
 	}
 }

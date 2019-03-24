@@ -268,10 +268,10 @@ static void *sound_run(void *ref) {
 
 static component blocks[] = {
 	//draw         x                   w    c  clk   cln
-	{ bright_run,  0,                  128, 1, NULL, NULL },
-	{ wifi_run,    128,                32,  1, NULL, NULL },
-	{ ac_run,      128 + 32,           128, 1, NULL, NULL },
-	{ clock_run,   1920 / 2 - 256 / 2, 256, 1, NULL, NULL },
-	{ sound_run,   1920 - 200 - 200,   200, 1, NULL, NULL },
-	{ battery_run, 1920 - 200,         200, 1, NULL, NULL },
+	{ bright_run,  0,                  128, 0, NULL, NULL },
+	{ wifi_run,    128,                32,  0, NULL, NULL },
+	{ ac_run,      128 + 32,           128, 0, NULL, NULL },
+	{ clock_run,   1920 / 2 - 256 / 2, 256, 0, NULL, NULL },
+	{ sound_run,   1920 - 200 - 200,   200, 0, NULL, NULL },
+	{ battery_run, 1920 - 200,         200, 0, NULL, NULL },
 };
