@@ -26,7 +26,7 @@ typedef struct component {
 	const int width;
 
 	const int clickable;
-	void (*click) (xcb_button_press_event_t *ev);
+	void (*click) (struct component *ref);
 	
 	void (*cleanup) (struct component *ref);
 
