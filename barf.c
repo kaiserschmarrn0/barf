@@ -19,8 +19,8 @@ typedef union {
 	uint32_t v;
 } rgba;
 
-static Display *dpy;
 static xcb_connection_t *conn;
+static Display *dpy;
 static xcb_screen_t *scr;
 static xcb_window_t bar;
 static xcb_pixmap_t pm;
@@ -36,15 +36,7 @@ static XftFont *text_font;
 
 static XftDraw *draw;
 
-static void update() {
-	for (int i = 0; i < LEN(blocks); i++) {
-		if (blocks[i].needs_update) {
-			xcb_copy_area(conn, pm, bar, bgc, blocks[i].start, 0, blocks[i].start, 0,
-					blocks[i].width, BAR_H);
-			blocks[i].needs_update = 0;
-		}
-	}
-}
+static pthread_mutex_t lock;
 
 static uint32_t xcb_color(uint32_t hex) {
 	rgba col;
@@ -76,7 +68,7 @@ static XftColor xft_color(uint32_t hex) {
 	return ret;
 }
 
-static xcb_gcontext_t xcb_gc(uint32_t hex) {
+static xcb_gcontext_t create_gc(uint32_t hex) {
 	uint32_t vals[2];
 	vals[1] = 0;
 	vals[0] = xcb_color(hex);
@@ -85,6 +77,21 @@ static xcb_gcontext_t xcb_gc(uint32_t hex) {
 	xcb_create_gc(conn, ret, bar, XCB_GC_FOREGROUND | XCB_GC_GRAPHICS_EXPOSURES, vals);
 
 	return ret;
+}
+
+static xcb_gcontext_t change_gc(xcb_gcontext_t gc, uint32_t hex) {
+	hex = xcb_color(hex);
+	xcb_change_gc(conn, gc, XCB_GC_FOREGROUND, &hex);
+}
+
+static void flip_block(component *block) {
+	xcb_copy_area(conn, pm, bar, bgc, block->start, 0, block->start, 0, block->width, BAR_H);
+}
+
+static void flip() {
+	for (int i = 0; i < LEN(blocks); i++) {
+		flip_block(&blocks[i]);	
+	}
 }
 
 static void xft_string(int x, XftColor *fg, XftFont *font, char *str, int len) {
@@ -98,7 +105,18 @@ static int xft_width(XftFont *font, char *str, int len) {
 	return ret.width;
 }
 
-static inline void draw_text(XftColor *fg, int x, char *icon, char *text) {
+static void draw_block(component *block, char *icon, char *text) {
+	pthread_mutex_lock(&lock);
+
+	xcb_rectangle_t rect;
+
+	rect.x = block->start;
+	rect.y = 0;
+	rect.width = block->width;
+	rect.height = BAR_H;
+
+	xcb_poly_fill_rectangle(conn, pm, block->bg, 1, &rect);
+	
 	int text_len; 
 	int icon_len;
 
@@ -115,39 +133,20 @@ static inline void draw_text(XftColor *fg, int x, char *icon, char *text) {
 		text_width = xft_width(text_font, text, text_len);
 	}
 
-	int location = x - (icon_width + text_width) / 2;
+	int location = block->start + (block->width - (icon_width + text_width)) / 2;
 
-	if (icon[0])
-		xft_string(location, fg, icon_font, icon, icon_len);
-	if (text[0])
-		xft_string(location + icon_width, fg, text_font, text, text_len);
-}
+	if (icon[0]) {
+		xft_string(location, &block->fg, icon_font, icon, icon_len);
+	}
+	if (text[0]) {
+		xft_string(location + icon_width, &block->fg, text_font, text, text_len);
+	}
 
-static inline void fill_back(int x, int w, xcb_gcontext_t gc) {
-	xcb_rectangle_t rect;
+	flip_block(block);
 
-	rect.x = x;
-	rect.y = 0;
-	rect.width = w;
-	rect.height = BAR_H;
-
-	xcb_poly_fill_rectangle(conn, pm, gc, 1, &rect);
-}
-
-static inline void draw_block(Block block) {
-	fill_back(block.start, block.width, block.bg);
-
-	char icon[ICON_MAX];
-	char text[TEXT_MAX];
-
-	block.info(icon, text);
-
-	draw_text(&block.fg, block.start + block.width / 2, icon, text);
-}
-
-static inline void draw_blocks(void) {
-	for (int i = 0; i < LEN(blocks); i++)
-		draw_block(blocks[i]);
+	xcb_flush(conn);
+	
+	pthread_mutex_unlock(&lock);
 }
 
 static inline void connect(void) {
@@ -181,7 +180,7 @@ static inline void create_window(void) {
 	vals[0] = xcb_color(0xC03b4252);
 	vals[1] = 0xFFFFFFFF;
  	vals[2] = 0;
-	vals[3] = XCB_EVENT_MASK_EXPOSURE;
+	vals[3] = XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS;
 	vals[4] = cm;
 
 	uint32_t mask = XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL | XCB_CW_OVERRIDE_REDIRECT |
@@ -215,7 +214,7 @@ static inline void load_resources(void) {
 	pm = xcb_generate_id(conn);
 	xcb_create_pixmap(conn, depth, pm, bar, BAR_W, BAR_H);
 	
-	bgc = xcb_gc(BKGCOL);
+	bgc = create_gc(BKGCOL);
 	
 	icon_font = XftFontOpenName(dpy, 0, icon_font_name);
 	text_font = XftFontOpenName(dpy, 0, text_font_name);
@@ -232,11 +231,30 @@ static void die(void) {
 
 	for (int i = 0; i < LEN(blocks); i++) {
 		xcb_free_gc(conn, blocks[i].bg);
+		if(blocks[i].cleanup) {
+			blocks[i].cleanup(&blocks[i]);
+		}
 	}
 		
 	xcb_free_gc(conn, bgc);
 	
 	xcb_disconnect(conn);
+
+	pthread_mutex_destroy(&lock);
+}
+
+static void handle_expose(xcb_generic_event_t *ev) {
+	flip();
+}
+
+static void handle_button_press(xcb_generic_event_t *ev) {
+	xcb_button_press_event_t *e = (xcb_button_press_event_t *)ev;
+
+	for (int i = 0; i < LEN(blocks); i++) {
+		if (e->event_x > blocks[i].start && e->event_x < blocks[i].start + blocks[i].width) {
+			printf("block %d pressed.\n", i);
+		}
+	}
 }
 
 int main(void) {
@@ -245,21 +263,39 @@ int main(void) {
 	connect();
 	create_window();
 	load_resources();
-	
-	for (int i = 0; i < LEN(blocks); i++) {
-		blocks[i].fg = xft_color(blocks[i].fg_col);
-		blocks[i].bg = xcb_gc(blocks[i].bg_col);
-		blocks[i].needs_update = 1;
+
+	if (pthread_mutex_init(&lock, NULL)) {
+		printf("failed to lock drawing.\n");
+		return 1;
 	}
+	
+	pthread_t component_id[LEN(blocks)];
+	for (int i = 0; i < LEN(blocks); i++) {
+		blocks[i].bg = create_gc(0xffffffff);	
+		pthread_create(&component_id[i], NULL, blocks[i].run, (void *)&blocks[i]);
+	}
+
+	void (*events[XCB_NO_OPERATION])(xcb_generic_event_t *event);
+	
+	for (int i = 0; i < XCB_NO_OPERATION; i++) {
+		events[i] = NULL;
+	}
+
+	events[XCB_EXPOSE]       = handle_expose;
+	events[XCB_BUTTON_PRESS] = handle_button_press;
 
 	xcb_generic_event_t *ev = NULL;
 	for (; !xcb_connection_has_error(conn);) {
 		xcb_flush(conn);
 		ev = xcb_wait_for_event(conn);
-		draw_blocks();
- 		update();
+
+		int index = ev->response_type & ~0x80;
+		if (events[index]) {
+			events[index](ev);
+		}
+
 		free(ev);
 	}
-
- 	return 0;
+	
+	return 0;
 }
