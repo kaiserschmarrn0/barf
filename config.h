@@ -2,9 +2,10 @@
 #include <unistd.h>
 #include <time.h>
 #include <alsa/asoundlib.h>
+#include <signal.h>
 
 #define ICON_MAX 16
-#define TEXT_MAX 16
+#define TEXT_MAX 32
 
 #define BAR_X 0
 #define BAR_Y 0
@@ -14,6 +15,7 @@
 #define BKGCOL 0xc03b4252
 
 typedef union {
+	//percent or HH:MM
 	int battery_format;
 } block_data;
 
@@ -26,9 +28,9 @@ typedef struct component {
 	const int width;
 
 	const int clickable;
-	void (*click) (struct component *ref);
+	void (*click) (struct component *this);
 	
-	void (*cleanup) (struct component *ref);
+	void (*cleanup) (struct component *this);
 
 	//handled
 
@@ -70,10 +72,17 @@ static void get_sys_string(char *path, char *string) {
 }
 
 static void *battery_run(void *ref) {
+	static sigset_t mask;
+
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGUSR1);
+
 	component *this = (component *)ref;
 	
 	this->fg = xft_color(0xffeceff4);
 	change_gc(this->bg, 0xffbf616a);
+	
+	this->data.battery_format = 0;
 
 	FILE *current;
 
@@ -101,11 +110,25 @@ static void *battery_run(void *ref) {
 		bat_energy_now += bat_1_energy_now;
 		bat_power_now += bat_1_power_now;
 
-		int perc = 100 * (float)bat_energy_now / (float)bat_energy_full;
-
 		char text[TEXT_MAX];
+		int perc = 100 * (float)bat_energy_now / (float)bat_energy_full;
+			
+		if (this->data.battery_format) {
+			int online;
+			get_sys_int("/sys/class/power_supply/AC/online", &online);
 
-		snprintf(text, TEXT_MAX, "    %d", perc);
+			if (online) {
+				snprintf(text, TEXT_MAX, "    charging");
+			} else {
+				float time_remaining = (float)bat_energy_now / (float)bat_power_now;
+				int hours = time_remaining;
+				int mins = (time_remaining - hours) * 60;
+
+				snprintf(text, TEXT_MAX, "    %02.2d:%02.2d left", hours, mins);
+			}
+		} else {
+			snprintf(text, TEXT_MAX, "    %d", perc);
+		}
 
 		char icon[ICON_MAX];
 
@@ -124,6 +147,20 @@ static void *battery_run(void *ref) {
 		draw_block(this, icon, text);	
 		sleep(60);
 	}
+}
+
+static void battery_click(component *this) {
+	if (this->data.battery_format) {
+		this->fg = xft_color(0xffeceff4);
+		change_gc(this->bg, 0xffbf616a);
+	} else {
+		this->fg = xft_color(0xffbf616a);
+		change_gc(this->bg, 0xffeceff4);
+	}
+
+	this->data.battery_format = !this->data.battery_format;
+
+	pthread_kill(this->thread_id, SIGUSR1);	
 }
 
 static void *clock_run(void *ref) {
@@ -161,13 +198,13 @@ static void *bright_run(void *ref) {
 		get_sys_int("/sys/class/backlight/intel_backlight/brightness", &bright);
 
 		char icon[ICON_MAX];
-		float frac = bright / max_bright;
-		if (frac > 0.7) {
+		float frac = (float)bright / (float)max_bright;
+		if (frac > 0.7f) {
 			sprintf(icon, "\uf005");
-		} else if (frac > 0.3) {
-			sprintf(icon, "\uf006");
-		} else {
+		} else if (frac > 0.3f) {
 			sprintf(icon, "\uf123");
+		} else {
+			sprintf(icon, "\uf006");
 		}
 		
 		draw_block(this, icon, "\0");
@@ -284,5 +321,5 @@ static component blocks[] = {
 	{ ac_run,      128 + 32,           128, 0, NULL, NULL },
 	{ clock_run,   1920 / 2 - 256 / 2, 256, 0, NULL, NULL },
 	{ sound_run,   1920 - 200 - 200,   200, 0, NULL, NULL },
-	{ battery_run, 1920 - 200,         200, 0, NULL, NULL },
+	{ battery_run, 1920 - 200,         200, 1, battery_click, NULL },
 };

@@ -258,8 +258,14 @@ static void handle_button_press(xcb_generic_event_t *ev) {
 	}
 }
 
+static void handle(int signum) {
+	//do nothing, we use signals to interrupt threads
+}
+
 int main(void) {
 	atexit(die);
+
+	signal(SIGUSR1, handle);
 
 	connect();
 	create_window();
