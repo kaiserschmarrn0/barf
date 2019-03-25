@@ -14,7 +14,7 @@
 #define BKGCOL 0xc03b4252
 
 typedef union {
-
+	int battery_format;
 } block_data;
 
 typedef struct component {
@@ -36,6 +36,8 @@ typedef struct component {
 	xcb_gcontext_t bg;
 
 	block_data data;
+	
+	pthread_t thread_id;
 } component;
 
 //functions that you probably want to use here
@@ -45,6 +47,27 @@ static void draw_block(component *block, char *icon, char *text);
 
 static const char *icon_font_name = "Font Awesome:size=14:autohint=true:antialias=true";
 static const char *text_font_name = "IBM Plex Sans:size=12:autohint=true:antialias=true";
+
+static void get_sys_int(char *path, int *value) {
+	FILE *batfile = NULL; 
+	while (!(batfile = fopen(path, "r"))) {
+		sleep(1);
+	}
+
+	fscanf(batfile, "%d", value);
+	fclose(batfile);
+}
+
+static void get_sys_string(char *path, char *string) {
+	FILE *batfile = NULL; 
+	while (!(batfile = fopen(path, "r"))) {
+		sleep(1);
+	}
+
+	fscanf(batfile, "%15s", string);
+	string[15] = '\0';
+	fclose(batfile);
+}
 
 static void *battery_run(void *ref) {
 	component *this = (component *)ref;
@@ -57,14 +80,9 @@ static void *battery_run(void *ref) {
 	int bat_energy_full;
 	int bat_1_energy_full;
 	
-	current = fopen("/sys/class/power_supply/BAT0/energy_full", "r");
-	fscanf(current, "%d", &bat_energy_full);
-	fclose(current);
+	get_sys_int("/sys/class/power_supply/BAT0/energy_full", &bat_energy_full);
+	get_sys_int("/sys/class/power_supply/BAT1/energy_full", &bat_1_energy_full);
 	
-	current = fopen("/sys/class/power_supply/BAT1/energy_full", "r");
-	fscanf(current, "%d", &bat_1_energy_full);
-	fclose(current);
-
 	bat_energy_full += bat_1_energy_full;
 	
 	for (;;) {
@@ -73,20 +91,12 @@ static void *battery_run(void *ref) {
 
 		int bat_1_energy_now;
 		int bat_1_power_now;
-
-		current = fopen("/sys/class/power_supply/BAT0/energy_now", "r");
-		fscanf(current, "%d", &bat_energy_now);
-		fclose(current);
-		current = fopen("/sys/class/power_supply/BAT0/power_now", "r");
-		fscanf(current, "%d", &bat_power_now);
-		fclose(current);
 		
-		current = fopen("/sys/class/power_supply/BAT1/energy_now", "r");
-		fscanf(current, "%d", &bat_1_energy_now);
-		fclose(current);
-		current = fopen("/sys/class/power_supply/BAT1/power_now", "r");
-		fscanf(current, "%d", &bat_1_power_now);
-		fclose(current);
+		get_sys_int("/sys/class/power_supply/BAT0/energy_now", &bat_energy_now);
+		get_sys_int("/sys/class/power_supply/BAT0/power_now", &bat_power_now);
+		
+		get_sys_int("/sys/class/power_supply/BAT1/energy_now", &bat_1_energy_now);
+		get_sys_int("/sys/class/power_supply/BAT1/power_now", &bat_1_power_now);
 		
 		bat_energy_now += bat_1_energy_now;
 		bat_power_now += bat_1_power_now;
@@ -143,22 +153,18 @@ static void *bright_run(void *ref) {
 
 	int max_bright;
 
-	FILE *current = fopen("/sys/class/backlight/intel_backlight/max_brightness", "r");
-	fscanf(current, "%d", &max_bright);
-	fclose(current);
+	get_sys_int("/sys/class/backlight/intel_backlight/max_brightness", &max_bright);
 
 	for (;;) {
 		int bright;
 
-		current = fopen("/sys/class/backlight/intel_backlight/brightness", "r");
-		fscanf(current, "%d", &bright);
-		fclose(current);
+		get_sys_int("/sys/class/backlight/intel_backlight/brightness", &bright);
 
 		char icon[ICON_MAX];
 		float frac = bright / max_bright;
 		if (frac > 0.7) {
 			sprintf(icon, "\uf005");
-		} else if (frac > 0.6) {
+		} else if (frac > 0.3) {
 			sprintf(icon, "\uf006");
 		} else {
 			sprintf(icon, "\uf123");
@@ -178,9 +184,7 @@ static void *wifi_run(void *ref) {
 
 	for (;;) {
 		char state[TEXT_MAX];
-		FILE *current = fopen("/sys/class/net/wlp3s0/operstate", "r");
-		fscanf(current, "%s", &state);
-		fclose(current);
+		get_sys_string("/sys/class/net/wlp3s0/operstate", state);
 
 		char icon[ICON_MAX];
 		if (strcmp(state, "up")) {
@@ -202,9 +206,8 @@ static void *ac_run(void *ref) {
 	change_gc(this->bg, 0xff81a1c1);
 
 	for (;;) {
-		FILE *ac = fopen("/sys/class/power_supply/AC/online", "r");
 		int online;
-		fscanf(ac, "%d", &online);
+		get_sys_int("/sys/class/power_supply/AC/online", &online);
 
 		char icon[ICON_MAX];
 
@@ -227,7 +230,7 @@ static void *sound_run(void *ref) {
 	change_gc(this->bg, 0xff81a1c1);
 	
 	for (;;) {
-		snd_mixer_t *handle;
+		snd_mixer_t *handle = NULL;
 		snd_mixer_open(&handle, 0);
 		snd_mixer_attach(handle, "default");
 		snd_mixer_selem_register(handle, NULL, NULL);
@@ -238,6 +241,10 @@ static void *sound_run(void *ref) {
 		snd_mixer_selem_id_set_index(sid, 0);
 		snd_mixer_selem_id_set_name(sid, "Master");
 		snd_mixer_elem_t *elem = snd_mixer_find_selem(handle, sid);
+
+		if (!elem) {
+			goto a;
+		}
 
 		long vol_min, vol_max;
 		snd_mixer_selem_get_playback_volume_range(elem, &vol_min, &vol_max);
@@ -250,8 +257,6 @@ static void *sound_run(void *ref) {
 
 		int not_mute;
 		snd_mixer_selem_get_playback_switch(elem, SND_MIXER_SCHN_MONO, &not_mute);
-		
-		snd_mixer_close(handle);
 
 		char icon[ICON_MAX];
 		if (not_mute) {
@@ -261,13 +266,19 @@ static void *sound_run(void *ref) {
 		}
 
 		draw_block(this, icon, text);
+	
+		a:
+
+		if (handle) {
+			snd_mixer_close(handle);
+		}
 
 		sleep(1);
 	}
 }
 
 static component blocks[] = {
-	//draw         x                   w    c  clk   cln
+	//draw         x                   wdth c? click cln
 	{ bright_run,  0,                  128, 0, NULL, NULL },
 	{ wifi_run,    128,                32,  0, NULL, NULL },
 	{ ac_run,      128 + 32,           128, 0, NULL, NULL },

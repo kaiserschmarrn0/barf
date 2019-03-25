@@ -270,10 +270,9 @@ int main(void) {
 		return 1;
 	}
 	
-	pthread_t component_id[LEN(blocks)];
 	for (int i = 0; i < LEN(blocks); i++) {
 		blocks[i].bg = create_gc(0xffffffff);	
-		pthread_create(&component_id[i], NULL, blocks[i].run, (void *)&blocks[i]);
+		pthread_create(&blocks[i].thread_id, NULL, blocks[i].run, (void *)&blocks[i]);
 	}
 
 	void (*events[XCB_NO_OPERATION])(xcb_generic_event_t *event);
