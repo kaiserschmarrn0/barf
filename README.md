@@ -2,7 +2,7 @@
 
 barf - hardcore statusbar
 -------------------------
-barf is a highly performant, multi-threaded replacement for lemonbar
+barf is a performant framework for building a statusbar in c
 
 barf is written in c using xcb and Xft, and supports clickable areas
 
@@ -13,10 +13,6 @@ xcb header files
 xlib-xcb header files
 
 xft header files
-
-Configuration
--------------
-barf is configured by editing config.h and recompiling
 
 Installation
 ------------
