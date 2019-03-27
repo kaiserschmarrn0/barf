@@ -1,4 +1,4 @@
-#include "config.h"
+#include "barf.h"
 
 float bright_get_frac(component *this) {
 	xcb_randr_get_output_property_cookie_t cookie =

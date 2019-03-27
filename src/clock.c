@@ -1,4 +1,4 @@
-#include "config.h"
+#include "barf.h"
 
 int clock_init(component *this) {
 	this->fg = xft_color(0xffffffff);

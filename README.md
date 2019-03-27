@@ -4,7 +4,7 @@ barf - hardcore statusbar
 -------------------------
 barf is a performant framework for building a statusbar in c
 
-barf is written in c using xcb and Xft, and supports clickable areas
+barf is written in c using xcb and Xft, andsupports clickable areas and compositing
 
 Requirements
 ------------

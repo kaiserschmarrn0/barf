@@ -7,7 +7,7 @@
 #include <X11/Xlib-xcb.h>
 #include <X11/Xft/Xft.h>
 
-#include "config.h"
+#include "barf.h"
 
 #define LEN(A) sizeof(A)/sizeof(*A)
 
