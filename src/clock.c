@@ -1,4 +1,8 @@
-#include "barf.h"
+#include <errno.h>
+#include <unistd.h>
+#include <sys/timerfd.h>
+
+#include "clock.h"
 
 int clock_init(component *this) {
 	this->fg = xft_color(0xffffffff);
@@ -34,9 +38,9 @@ int clock_init(component *this) {
 	draw_block(this, "\0", text);
 }
 
-void clock_run(component *this) {
+int clock_run(component *this) {
 	uint64_t timer_count = 0;
-	read (this->fd, &timer_count, 8);
+	read(this->fd, &timer_count, 8);
 
 	time_t t = time(NULL);
 	struct tm *date = localtime(&t);
@@ -45,11 +49,11 @@ void clock_run(component *this) {
 	strftime(text, TEXT_MAX, "%b %d %H:%M", date);
 	
 	draw_block(this, "\0", text);
+
+	return 0;
 }
 
 void clock_clean(component *this) {
-	close(this->fd);
-	
 	struct itimerspec ts;
 	ts.it_interval.tv_sec = 0;
 	ts.it_interval.tv_nsec = 0;
@@ -58,6 +62,7 @@ void clock_clean(component *this) {
 
 	if (timerfd_settime(this->fd, 0, &ts, NULL) < 0) {
 		fprintf(stderr, "Clock: couldn't disarm timer: %s\n", strerror(errno));
-		close(this->fd);
 	}
+	
+	close(this->fd);
 }

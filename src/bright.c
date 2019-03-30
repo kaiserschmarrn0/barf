@@ -1,11 +1,21 @@
-#include "barf.h"
+#include <xcb/xcb.h>
+#include <xcb/randr.h>
 
-float bright_get_frac(component *this) {
+#include "bright.h"
+
+static xcb_connection_t *conn;
+static xcb_randr_output_t monitor;
+static xcb_atom_t backlight_atom;
+
+static int max_bright;
+static int min_bright;
+
+static float bright_get_frac(component *this) {
 	xcb_randr_get_output_property_cookie_t cookie =
-			xcb_randr_get_output_property_unchecked(this->data.conn,
-			this->data.monitor, this->data.backlight_atom, XCB_ATOM_NONE, 0, 4, 0, 0);
+			xcb_randr_get_output_property_unchecked(conn,
+			monitor, backlight_atom, XCB_ATOM_NONE, 0, 4, 0, 0);
 	xcb_randr_get_output_property_reply_t *reply =
-			xcb_randr_get_output_property_reply(this->data.conn, cookie, NULL);
+			xcb_randr_get_output_property_reply(conn, cookie, NULL);
 
 	if (!reply || XCB_ATOM_INTEGER != reply->type || 1 != reply->num_items ||
 			32 != reply->format) {
@@ -15,15 +25,15 @@ float bright_get_frac(component *this) {
 	}
 
 	uint32_t value = *(uint32_t *)xcb_randr_get_output_property_data(reply);
-	float min_bright = this->data.min_bright;
-	return ((float)value - min_bright) / ((float)this->data.max_bright - min_bright);
+	float min_bright = min_bright;
+	return ((float)value - min_bright) / ((float)max_bright - min_bright);
 }
 
-static void draw_bright_icon(component *this) {
+static int draw_bright_icon(component *this) {
 	float frac = bright_get_frac(this);
 
 	if (frac < 0) {
-		return;
+		return 1;
 	}
 			
 	char icon[ICON_MAX];
@@ -36,23 +46,27 @@ static void draw_bright_icon(component *this) {
 	}
 
 	draw_block(this, icon, "\0");
+
+	return 0;
 }
 
-static void draw_bright_text(component *this) {
+static int draw_bright_text(component *this) {
 	float frac = bright_get_frac(this);
 	
 	if (frac < 0) {
-		return;
+		return 1;
 	}
 
 	char text[TEXT_MAX];
 	snprintf(text, TEXT_MAX, "%.0f", frac * (float)100);
 
 	draw_block(this, "\0", text);
+
+	return 0;
 }
 
 int bright_init(component *this) {
-	xcb_connection_t *conn = xcb_connect(NULL, NULL);
+	conn = xcb_connect(NULL, NULL);
 	if (xcb_connection_has_error(conn)) {
 		fprintf(stderr, "Bright: couldn't connect to X.\n");
 		return 1;
@@ -94,7 +108,7 @@ int bright_init(component *this) {
 	}
 
 	/* just grab the first monitor */
-	this->data.monitor = *monitors;
+	monitor = *monitors;
 	free(mon_reply);
 
 	xcb_intern_atom_cookie_t cookie = xcb_intern_atom(conn, 0, sizeof("Backlight") - 1,
@@ -111,24 +125,23 @@ int bright_init(component *this) {
 		free(reply);
 		return 1;
 	}
-	this->data.backlight_atom = reply->atom;
+	backlight_atom = reply->atom;
 	free(reply);
 	
 	xcb_randr_query_output_property_cookie_t range_cookie =
-			xcb_randr_query_output_property_unchecked(conn, this->data.monitor,
-			this->data.backlight_atom);
+			xcb_randr_query_output_property_unchecked(conn, monitor,
+			backlight_atom);
 	xcb_randr_query_output_property_reply_t *range_reply =
 			xcb_randr_query_output_property_reply(conn, range_cookie, NULL);
 
 	uint32_t *scale = xcb_randr_query_output_property_valid_values(range_reply);
-	this->data.min_bright = scale[0];
-	this->data.max_bright = scale[1];
+	min_bright = scale[0];
+	max_bright = scale[1];
 
 	free(range_reply);
 
 	xcb_randr_select_input(conn, scr->root, XCB_RANDR_NOTIFY_MASK_OUTPUT_PROPERTY);
 
-	this->data.conn = conn;
 	this->fd = xcb_get_file_descriptor(conn);
 	
 	this->fg = xft_color(0xff3b4252);
@@ -141,11 +154,11 @@ int bright_init(component *this) {
 
 static int bright_event(component *this) {
 	xcb_randr_notify_event_t *ev =
-			(xcb_randr_notify_event_t *)xcb_poll_for_event(this->data.conn);
+			(xcb_randr_notify_event_t *)xcb_poll_for_event(conn);
 
 	if (ev->subCode != XCB_RANDR_NOTIFY_OUTPUT_PROPERTY ||
 			ev->u.op.status != XCB_PROPERTY_NEW_VALUE ||
-			ev->u.op.atom != this->data.backlight_atom) {
+			ev->u.op.atom != backlight_atom) {
 		free(ev);
 		return 1;
 	}
@@ -154,15 +167,15 @@ static int bright_event(component *this) {
 	return 0;
 }
 
-void bright_run_icon(component *this) {
+int bright_run_icon(component *this) {
 	if (bright_event(this)) {
-		return;
+		return 1;
 	}
 
 	float frac = bright_get_frac(this);
 
 	if (frac < 0) {
-		return;
+		return 1;
 	}
 			
 	char icon[ICON_MAX];
@@ -175,35 +188,47 @@ void bright_run_icon(component *this) {
 	}
 
 	draw_block(this, icon, "\0");
+
+	return 0;
 }
 
-void bright_run_text(component *this) {
+int bright_run_text(component *this) {
 	if (bright_event(this)) {
-		return;
+		return 1;
 	}
 
 	float frac = bright_get_frac(this);
 	
 	if (frac < 0) {
-		return;
+		return 1;
 	}
 
 	char text[TEXT_MAX];
 	snprintf(text, TEXT_MAX, "%.0f", frac * (float)100);
 
 	draw_block(this, "\0", text);
+
+	return 0;
 }
 
 void bright_clean(component *this) {
-	xcb_disconnect(this->data.conn);
+	xcb_disconnect(conn);
 }
 
-void bright_click(component *this) {
+int bright_click(component *this) {
 	if (this->run == bright_run_icon) {
-		draw_bright_text(this);
+		if (draw_bright_text(this)) {
+			return 1;
+		}
+
 		this->run = bright_run_text;
 	} else {
-		draw_bright_icon(this);
+		if (draw_bright_icon(this)) {
+			return 1;
+		}
+
 		this->run = bright_run_icon;
 	}
+
+	return 0;
 }

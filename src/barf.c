@@ -1,5 +1,7 @@
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
 
@@ -7,7 +9,7 @@
 #include <X11/Xlib-xcb.h>
 #include <X11/Xft/Xft.h>
 
-#include "barf.h"
+#include "config.h"
 
 #define LEN(A) sizeof(A)/sizeof(*A)
 
@@ -39,6 +41,29 @@ static XftFont *text_font;
 static XftDraw *draw;
 
 static pthread_mutex_t lock;
+
+void get_sys_int(char *path, int *value) {
+	FILE *batfile = NULL; 
+	while (!(batfile = fopen(path, "r"))) {
+		fprintf(stderr, "Couldn't open file: %s\n", strerror(errno));
+		sleep(1);
+	}
+
+	fscanf(batfile, "%d", value);
+	fclose(batfile);
+}
+
+void get_sys_string(char *path, char *string) {
+	FILE *batfile = NULL; 
+	while (!(batfile = fopen(path, "r"))) {
+		fprintf(stderr, "Couldn't open file: %s\n", strerror(errno));
+		sleep(1);
+	}
+
+	fscanf(batfile, "%15s", string);
+	string[15] = '\0';
+	fclose(batfile);
+}
 
 static uint32_t xcb_color(uint32_t hex) {
 	rgba col;
@@ -241,19 +266,25 @@ static void die(void) {
 	pthread_mutex_destroy(&lock);
 }
 
-static void handle_expose(xcb_generic_event_t *ev) {
+static int handle_expose(xcb_generic_event_t *ev) {
 	flip();
+	return 0;
 }
 
-static void handle_button_press(xcb_generic_event_t *ev) {
+static int handle_button_press(xcb_generic_event_t *ev) {
 	xcb_button_press_event_t *e = (xcb_button_press_event_t *)ev;
 
 	for (int i = 0; i < LEN(blocks); i++) {
 		if (blocks[i].click && e->event_x > blocks[i].start &&
 				e->event_x < blocks[i].start + blocks[i].width) {
-			blocks[i].click(&blocks[i]);
+			if (blocks[i].click(&blocks[i])) {
+				return 1;
+			}
+			break;
 		}
 	}
+	
+	return 0;
 }
 
 int main(void) {
@@ -282,7 +313,7 @@ int main(void) {
 		return 1;
 	}
 
-	void (*xcb_events[XCB_NO_OPERATION])(xcb_generic_event_t *event);
+	int (*xcb_events[XCB_NO_OPERATION])(xcb_generic_event_t *event);
 	
 	for (int i = 0; i < XCB_NO_OPERATION; i++) {
 		xcb_events[i] = NULL;
@@ -321,7 +352,9 @@ int main(void) {
 		for (int i = 0; i < event_count; i++) {
 			for (int j = 0; j < LEN(blocks); j++) {
 				if (epoll_events[i].data.fd == blocks[j].fd) {
-					blocks[j].run(&blocks[j]);
+					if (blocks[j].run(&blocks[j])) {
+						return 1;
+					}
 					goto out;
 				}
 			}
@@ -332,7 +365,9 @@ int main(void) {
 				
 				int index = ev->response_type & ~0x80;
 				if (xcb_events[index]) {
-					xcb_events[index](ev);
+					if (xcb_events[index](ev)) {
+						return 1;
+					}
 				}
 	
 				free(ev);
