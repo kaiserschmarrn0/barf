@@ -162,7 +162,6 @@ static int bright_event(void) {
 	if (ev->subCode != XCB_RANDR_NOTIFY_OUTPUT_PROPERTY ||
 			ev->u.op.status != XCB_PROPERTY_NEW_VALUE ||
 			ev->u.op.atom != backlight_atom) {
-		fprintf(stderr, "Bright: unknown event type: %d\n", ev->subCode);
 		free(ev);
 		return 1;
 	}
@@ -173,7 +172,7 @@ static int bright_event(void) {
 
 int bright_run_icon(void) {
 	if (bright_event()) {
-		/* ignore bad events */
+		/* ignore irrelevant events */
 		return 0;
 	}
 
@@ -199,7 +198,8 @@ int bright_run_icon(void) {
 
 int bright_run_text(void) {
 	if (bright_event()) {
-		return 1;
+		/* ignore irrelevant events */
+		return 0;
 	}
 
 	float frac = bright_get_frac();
