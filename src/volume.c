@@ -4,7 +4,7 @@
 
 #include "volume.h"
 
-static component *ref;
+static component *this;
 
 static snd_mixer_t *handle;
 static snd_mixer_elem_t *elem;
@@ -30,7 +30,7 @@ static int volume_draw(void) {
 		sprintf(icon, "\uf026");
 	}
 	
-	draw_block(ref, icon, text);
+	draw_block(this, icon, text);
 }
 
 static int volume_callback(snd_mixer_elem_t *elem, unsigned int mask) {
@@ -43,7 +43,7 @@ static int volume_callback(snd_mixer_elem_t *elem, unsigned int mask) {
 	return 0;
 }
 
-int volume_run(component *this) {
+int volume_run(void) {
 	int err = snd_mixer_handle_events(handle);
 	if (err < 0) {
 		fprintf(stderr, "Volume: failed to handle events: error %d.\n", err);
@@ -54,10 +54,10 @@ int volume_run(component *this) {
 	return 0;
 }
 
-int volume_init(component *this) {
-	int err;
+int volume_init(component *ref) {
+	this = ref;
 
-	err = snd_mixer_open(&handle, 0);
+	int err = snd_mixer_open(&handle, 0);
 	if (err < 0) {
 		fprintf(stderr, "Volume: failed to open mixer: error %d.\n", err);
 		snd_mixer_close(handle);
@@ -117,6 +117,6 @@ int volume_init(component *this) {
 	return 0;
 }
 
-void volume_clean(component *this) {
+void volume_clean(void) {
 	snd_mixer_close(handle);
 }

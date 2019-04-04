@@ -5,8 +5,8 @@
 
 int clock_init(component *this);
 
-int clock_run(component *this);
+int clock_run(void);
 
-void clock_clean(component *this);
+void clock_clean(void);
 
 #endif

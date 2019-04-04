@@ -5,10 +5,10 @@
 
 int bright_init(component *this);
 
-int bright_run_icon(component *this);
+int bright_run_icon(void);
 
-void bright_clean(component *this);
+void bright_clean(void);
 
-int bright_click(component *this);
+int bright_click(void);
 
 #endif

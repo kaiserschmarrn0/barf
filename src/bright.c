@@ -3,6 +3,8 @@
 
 #include "bright.h"
 
+static component *this;
+
 static xcb_connection_t *conn;
 static xcb_randr_output_t monitor;
 static xcb_atom_t backlight_atom;
@@ -10,7 +12,7 @@ static xcb_atom_t backlight_atom;
 static int max_bright;
 static int min_bright;
 
-static float bright_get_frac(component *this) {
+static float bright_get_frac(void) {
 	xcb_randr_get_output_property_cookie_t cookie =
 			xcb_randr_get_output_property_unchecked(conn,
 			monitor, backlight_atom, XCB_ATOM_NONE, 0, 4, 0, 0);
@@ -28,8 +30,8 @@ static float bright_get_frac(component *this) {
 	return ((float)value - min_bright) / ((float)max_bright - min_bright);
 }
 
-static int draw_bright_icon(component *this) {
-	float frac = bright_get_frac(this);
+static int draw_bright_icon(void) {
+	float frac = bright_get_frac();
 
 	if (frac < 0) {
 		return 1;
@@ -49,8 +51,8 @@ static int draw_bright_icon(component *this) {
 	return 0;
 }
 
-static int draw_bright_text(component *this) {
-	float frac = bright_get_frac(this);
+static int draw_bright_text(void) {
+	float frac = bright_get_frac();
 	
 	if (frac < 0) {
 		return 1;
@@ -64,7 +66,9 @@ static int draw_bright_text(component *this) {
 	return 0;
 }
 
-int bright_init(component *this) {
+int bright_init(component *ref) {
+	this = ref;
+
 	conn = xcb_connect(NULL, NULL);
 	if (xcb_connection_has_error(conn)) {
 		fprintf(stderr, "Bright: couldn't connect to X.\n");
@@ -146,12 +150,12 @@ int bright_init(component *this) {
 	this->fg = xft_color(0xff3b4252);
 	change_gc(this->bg, 0xff81a1c1);
 
-	draw_bright_icon(this);
+	draw_bright_icon();
 
 	return 0;
 }
 
-static int bright_event(component *this) {
+static int bright_event(void) {
 	xcb_randr_notify_event_t *ev =
 			(xcb_randr_notify_event_t *)xcb_poll_for_event(conn);
 
@@ -166,12 +170,12 @@ static int bright_event(component *this) {
 	return 0;
 }
 
-int bright_run_icon(component *this) {
-	if (bright_event(this)) {
+int bright_run_icon(void) {
+	if (bright_event()) {
 		return 1;
 	}
 
-	float frac = bright_get_frac(this);
+	float frac = bright_get_frac();
 
 	if (frac < 0) {
 		return 1;
@@ -191,12 +195,12 @@ int bright_run_icon(component *this) {
 	return 0;
 }
 
-int bright_run_text(component *this) {
-	if (bright_event(this)) {
+int bright_run_text(void) {
+	if (bright_event()) {
 		return 1;
 	}
 
-	float frac = bright_get_frac(this);
+	float frac = bright_get_frac();
 	
 	if (frac < 0) {
 		return 1;
@@ -210,19 +214,19 @@ int bright_run_text(component *this) {
 	return 0;
 }
 
-void bright_clean(component *this) {
+void bright_clean(void) {
 	xcb_disconnect(conn);
 }
 
-int bright_click(component *this) {
+int bright_click(void) {
 	if (this->run == bright_run_icon) {
-		if (draw_bright_text(this)) {
+		if (draw_bright_text()) {
 			return 1;
 		}
 
 		this->run = bright_run_text;
 	} else {
-		if (draw_bright_icon(this)) {
+		if (draw_bright_icon()) {
 			return 1;
 		}
 

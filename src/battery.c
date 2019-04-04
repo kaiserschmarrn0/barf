@@ -4,6 +4,8 @@
 
 #include "battery.h"
 
+static component *this;
+
 static int energy_full = 0;
 
 static int get_battery_energy() {
@@ -26,7 +28,7 @@ static void get_battery_icon(int perc, char *icon) {
 	}
 }
 
-static void battery_draw_perc(component *this) {
+static void battery_draw_perc(void) {
 	char icon[ICON_MAX];
 	char text[TEXT_MAX];
 
@@ -39,7 +41,7 @@ static void battery_draw_perc(component *this) {
 	draw_block(this, icon, text);
 }
 
-static void battery_draw_time(component *this) {
+static void battery_draw_time(void) {
 	char icon[ICON_MAX];
 	char text[TEXT_MAX];
 
@@ -70,11 +72,10 @@ static void battery_draw_time(component *this) {
 	draw_block(this, icon, text);
 }
 
-int battery_init(component *this) {
-	this->fg = xft_color(0xffeceff4);
-	change_gc(this->bg, 0xffbf616a);
-
-	this->fd = timerfd_create(CLOCK_MONOTONIC, 0);
+int battery_init(component *ref) {
+	this = ref;
+	
+	int fd = timerfd_create(CLOCK_MONOTONIC, 0);
 
 	if (this->fd == -1) {
 		fprintf(stderr, "Clock: couldn't create timer: %s\n", strerror(errno));
@@ -87,9 +88,9 @@ int battery_init(component *this) {
 	ts.it_value.tv_sec = 30;
 	ts.it_value.tv_nsec = 0;
 		
-	if (timerfd_settime(this->fd, 0, &ts, NULL) < 0) {
+	if (timerfd_settime(fd, 0, &ts, NULL) < 0) {
 		fprintf(stderr, "Clock: couldn't arm timer: %s\n", strerror(errno));
-		close(this->fd);
+		close(fd);
 		return 1;
 	}
 
@@ -99,56 +100,62 @@ int battery_init(component *this) {
 	get_sys_int("/sys/class/power_supply/BAT1/energy_full", &energy);
 	energy_full += energy;
 
-	battery_draw_perc(this);
+	this->fg = xft_color(0xffeceff4);
+	change_gc(this->bg, 0xffbf616a);
+
+	this->fd = fd;
+
+	battery_draw_perc();
 
 	return 0;
 }
 
-static void eat_fd(component *this) {
+static void eat_fd(int fd) {
 	uint64_t timer_count = 0;
-	read(this->fd, &timer_count, 8);
+	read(fd, &timer_count, 8);
 }
 
-int battery_run_perc(component *this) {
-	eat_fd(this);
+int battery_run_perc(void) {
+	eat_fd(this->fd);
 
-	battery_draw_perc(this);
+	battery_draw_perc();
 
 	return 0;
 }
 
-int battery_run_time(component *this) {
-	eat_fd(this);
+int battery_run_time(void) {
+	eat_fd(this->fd);
 
-	battery_draw_time(this);
+	battery_draw_time();
 	
 	return 0;
 }
 
-void battery_clean(component *this) {
+void battery_clean() {
 	struct itimerspec ts;
 	ts.it_interval.tv_sec = 0;
 	ts.it_interval.tv_nsec = 0;
 	ts.it_value.tv_sec = 0;
 	ts.it_value.tv_nsec = 0;
 
-	if (timerfd_settime(this->fd, 0, &ts, NULL) < 0) {
+	int fd = this->fd;
+	if (timerfd_settime(fd, 0, &ts, NULL) < 0) {
 		fprintf(stderr, "Clock: couldn't disarm timer: %s\n", strerror(errno));
 	}
 	
-	close(this->fd);
+	close(fd);
 }
 
-int battery_click(component *this) {
+int battery_click() {
 	if (this->run == battery_run_perc) {
 		this->fg = xft_color(0xffbf616a);
 		change_gc(this->bg, 0xffeceff4);
-		battery_draw_time(this);
+		battery_draw_time();
 		this->run = battery_run_time;
 	} else {
 		this->fg = xft_color(0xffeceff4);
 		change_gc(this->bg, 0xffbf616a);
-		battery_draw_perc(this);
+		battery_draw_perc();
 		this->run = battery_run_perc;
 	}
 

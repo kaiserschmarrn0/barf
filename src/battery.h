@@ -5,10 +5,10 @@
 
 int battery_init(component *this);
 
-int battery_run_perc(component *this);
-int battery_run_time(component *this);
+int battery_run_perc(void);
+int battery_run_time(void);
 
-void battery_clean(component *this);
-int battery_click(component *this);
+void battery_clean(void);
+int battery_click(void);
 
 #endif

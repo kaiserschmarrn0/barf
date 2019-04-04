@@ -5,8 +5,8 @@
 
 int wifi_init(component *this);
 
-int wifi_run(component *this);
+int wifi_run(void);
 
-void wifi_clean(component *this);
+void wifi_clean(void);
 
 #endif

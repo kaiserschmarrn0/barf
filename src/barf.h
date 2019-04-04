@@ -8,14 +8,14 @@
 #define TEXT_MAX 32
 
 typedef struct component {
-	int (*init) (struct component *this);
-	int (*run) (struct component *this);
-	void (*clean) (struct component *this);
+	int (*init) (struct component *ref);
+	int (*run) (void);
+	void (*clean) (void);
 
 	const int start;
 	const int width;
 
-	int (*click) (struct component *this);
+	int (*click) (void);
 
 	int fd;            //no touchy
 

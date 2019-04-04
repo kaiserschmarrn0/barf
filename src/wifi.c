@@ -15,12 +15,16 @@ typedef struct nl_req_s {
 	struct rtgenmsg gen;
 } nl_req_t;
 
-static char buf[8192];
-struct msghdr msg;
-struct sockaddr_nl local;
-struct iovec iov;
+static component *this;
 
-int wifi_init(component *this) {
+static char buf[8192];
+static struct msghdr msg;
+static struct sockaddr_nl local;
+static struct iovec iov;
+
+int wifi_init(component *ref) {
+	this = ref;
+
 	int fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
 
 	if (fd < 0) {
@@ -90,7 +94,7 @@ int wifi_init(component *this) {
 	return 0;
 }
 
-int wifi_run(component *this) {
+int wifi_run(void) {
 	ssize_t status = recvmsg(this->fd, &msg, MSG_DONTWAIT);
 
 	if (status < 0) {
@@ -141,6 +145,6 @@ int wifi_run(component *this) {
 	return 0;
 }
 
-void wifi_clean(component *this) {
+void wifi_clean(void) {
 	close(this->fd);
 }

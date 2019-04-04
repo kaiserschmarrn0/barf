@@ -40,8 +40,6 @@ static XftFont *text_font;
 
 static XftDraw *draw;
 
-static pthread_mutex_t lock;
-
 void get_sys_int(char *path, int *value) {
 	FILE *batfile = NULL; 
 	while (!(batfile = fopen(path, "r"))) {
@@ -255,15 +253,13 @@ static void die(void) {
 	for (int i = 0; i < LEN(blocks); i++) {
 		xcb_free_gc(conn, blocks[i].bg);
 		if (blocks[i].clean) {
-			blocks[i].clean(&blocks[i]);
+			blocks[i].clean();
 		}
 	}
 		
 	xcb_free_gc(conn, bgc);
 	
 	xcb_disconnect(conn);
-
-	pthread_mutex_destroy(&lock);
 }
 
 static int handle_expose(xcb_generic_event_t *ev) {
@@ -277,7 +273,7 @@ static int handle_button_press(xcb_generic_event_t *ev) {
 	for (int i = 0; i < LEN(blocks); i++) {
 		if (blocks[i].click && e->event_x > blocks[i].start &&
 				e->event_x < blocks[i].start + blocks[i].width) {
-			if (blocks[i].click(&blocks[i])) {
+			if (blocks[i].click()) {
 				return 1;
 			}
 			break;
@@ -352,7 +348,7 @@ int main(void) {
 		for (int i = 0; i < event_count; i++) {
 			for (int j = 0; j < LEN(blocks); j++) {
 				if (epoll_events[i].data.fd == blocks[j].fd) {
-					if (blocks[j].run(&blocks[j])) {
+					if (blocks[j].run()) {
 						return 1;
 					}
 					goto out;

@@ -4,7 +4,9 @@
 
 #include "ac.h"
 
-static void ac_draw(component *this) {
+static component *this;
+
+static void ac_draw() {
 	int charging;
 	get_sys_int("/sys/class/power_supply/AC/online", &charging);
 	
@@ -18,7 +20,9 @@ static void ac_draw(component *this) {
 	draw_block(this, icon, "\0");
 }
 
-int ac_init(component *this) {
+int ac_init(component *ref) {
+	this = ref;
+
 	int fd;
 	fd = timerfd_create(CLOCK_MONOTONIC, 0);
 	if (fd == -1) {
@@ -48,20 +52,20 @@ int ac_init(component *this) {
 	return 0;
 }
 
-static void eat_fd(component *this) {
+static void eat_fd(int fd) {
 	uint64_t timer_count = 0;
 	read(this->fd, &timer_count, 8);
 }
 
-int ac_run(component *this) {
-	eat_fd(this);
+int ac_run() {
+	eat_fd(this->fd);
 
-	ac_draw(this);	
+	ac_draw();	
 
 	return 0;
 }
 
-void ac_clean(component *this) {
+void ac_clean() {
 	struct itimerspec ts;
 	ts.it_interval.tv_sec = 0;
 	ts.it_interval.tv_nsec = 0;

@@ -4,13 +4,14 @@
 
 #include "clock.h"
 
-int clock_init(component *this) {
-	this->fg = xft_color(0xffffffff);
-	change_gc(this->bg, 0xc03b4252);
+static component *this;
 
-	this->fd = timerfd_create(CLOCK_MONOTONIC, 0);
+int clock_init(component *ref) {
+	this = ref;
+	
+	int fd = timerfd_create(CLOCK_MONOTONIC, 0);
 
-	if (this->fd == -1) {
+	if (fd == -1) {
 		fprintf(stderr, "Clock: couldn't create timer: %s\n", strerror(errno));
 		return 1;
 	}
@@ -25,9 +26,9 @@ int clock_init(component *this) {
 	ts.it_value.tv_sec = 60;
 	ts.it_value.tv_nsec = 0;
 		
-	if (timerfd_settime(this->fd, 0, &ts, NULL) < 0) {
+	if (timerfd_settime(fd, 0, &ts, NULL) < 0) {
 		fprintf(stderr, "Clock: couldn't arm timer: %s\n", strerror(errno));
-		close(this->fd);
+		close(fd);
 		return 1;
 	}
 	
@@ -35,10 +36,15 @@ int clock_init(component *this) {
 	
 	strftime(text, TEXT_MAX, "%b %d %H:%M", date);
 
+	this->fg = xft_color(0xffffffff);
+	change_gc(this->bg, 0xc03b4252);
+
+	this->fd = fd;
+
 	draw_block(this, "\0", text);
 }
 
-int clock_run(component *this) {
+int clock_run(void) {
 	uint64_t timer_count = 0;
 	read(this->fd, &timer_count, 8);
 
@@ -53,7 +59,7 @@ int clock_run(component *this) {
 	return 0;
 }
 
-void clock_clean(component *this) {
+void clock_clean(void) {
 	struct itimerspec ts;
 	ts.it_interval.tv_sec = 0;
 	ts.it_interval.tv_nsec = 0;
