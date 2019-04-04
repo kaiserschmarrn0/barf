@@ -45,21 +45,28 @@ static void battery_draw_time(component *this) {
 
 	int energy_now = get_battery_energy();
 	int perc = 100 * (float)energy_now / (float)energy_full;
-
+	
 	get_battery_icon(perc, icon);
 	
-	int power;
-	get_sys_int("/sys/class/power_supply/BAT0/power_now", &power);
-	float power_now = power;
-	get_sys_int("/sys/class/power_supply/BAT1/power_now", &power);
-	power_now += power;
+	int charging;
+	get_sys_int("/sys/class/power_supply/AC/online", &charging);
 
-	float time_remaining = (float)energy_now / (float)power_now;
-	int hours = time_remaining;
-	int mins = (time_remaining - hours) * 60;
-
-	snprintf(text, TEXT_MAX, "    %02.2d:%02.2d left", hours, mins);
-
+	if (charging) {
+		snprintf(text, TEXT_MAX, "    charging");
+	} else {
+		int power;
+		get_sys_int("/sys/class/power_supply/BAT0/power_now", &power);
+		float power_now = power;
+		get_sys_int("/sys/class/power_supply/BAT1/power_now", &power);
+		power_now += power;
+	
+		float time_remaining = (float)energy_now / (float)power_now;
+		int hours = time_remaining;
+		int mins = (time_remaining - hours) * 60;
+	
+		snprintf(text, TEXT_MAX, "    %02.2d:%02.2d left", hours, mins);
+	}
+	
 	draw_block(this, icon, text);
 }
 

@@ -25,7 +25,6 @@ static float bright_get_frac(component *this) {
 	}
 
 	uint32_t value = *(uint32_t *)xcb_randr_get_output_property_data(reply);
-	float min_bright = min_bright;
 	return ((float)value - min_bright) / ((float)max_bright - min_bright);
 }
 

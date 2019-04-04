@@ -5,7 +5,7 @@ PREFIX = /usr/local
 all: barf
 
 barf:
-	gcc src/*.c -o barf -I/usr/include/freetype2 -lX11 -lxcb -lxcb-randr -lxcb-ewmh -lXft -lfreetype -lX11-xcb
+	gcc src/*.c -o barf -I/usr/include/freetype2 -lX11 -lxcb -lasound -lxcb-randr -lxcb-ewmh -lXft -lfreetype -lX11-xcb
 
 install: barf
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
