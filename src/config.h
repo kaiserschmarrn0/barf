@@ -9,11 +9,11 @@
 #include "ac.h"
 
 #define BAR_X 0
-#define BAR_Y 0
+#define BAR_Y 1080 - 28
 #define BAR_W 1920
-#define BAR_H 34
+#define BAR_H 28
 
-#define BKGCOL 0xc03b4252
+#define BKGCOL 0xff302e2f
 
 static const char *icon_font_name = "Font Awesome:size=14:autohint=true:antialias=true";
 static const char *text_font_name = "IBM Plex Sans:size=12:autohint=true:antialias=true";
