@@ -198,7 +198,7 @@ static inline void create_window(void) {
 	bar = xcb_generate_id(conn);
 
 	uint32_t vals[5];
-	vals[0] = xcb_color(0xC03b4252);
+	vals[0] = xcb_color(BKGCOL);
 	vals[1] = 0xFFFFFFFF;
  	vals[2] = 0;
 	vals[3] = XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_BUTTON_PRESS;
@@ -209,9 +209,11 @@ static inline void create_window(void) {
 	xcb_create_window(conn, depth, bar, scr->root, BAR_X, BAR_Y, BAR_W, BAR_H, 0,
 			XCB_WINDOW_CLASS_INPUT_OUTPUT, vis, mask, vals);
 	
-	const char *names[2];
+	const char *names[4];
 	names[0] = "_NET_WM_WINDOW_TYPE";
 	names[1] = "_NET_WM_WINDOW_TYPE_DOCK";
+	names[2] = "_NET_WM_STATE";
+	names[3] = "_NET_WM_STATE_ABOVE";
 	
 	xcb_atom_t atoms[LEN(names)];
 	xcb_intern_atom_cookie_t cookies[LEN(names)];
@@ -222,12 +224,16 @@ static inline void create_window(void) {
 		if (reply) {
 			atoms[i] = reply->atom;
 			free(reply);
+		} else {
+			fprintf(stderr, "couldn't get atom: %s\n", names[i]);
 		}
 	}
 	
 	xcb_change_property(conn, XCB_PROP_MODE_REPLACE, bar, atoms[0], XCB_ATOM_ATOM, 32, 1,
 			&atoms[1]);
-	
+	xcb_change_property(conn, XCB_PROP_MODE_APPEND, bar, atoms[2], XCB_ATOM_ATOM, 32, 1,
+			&atoms[3]);
+
 	xcb_map_window(conn, bar);
 }
 
