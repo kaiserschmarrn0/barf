@@ -115,7 +115,7 @@ static void flip_block(component *block) {
 
 static void flip() {
 	for (int i = 0; i < LEN(blocks); i++) {
-		flip_block(&blocks[i]);	
+		flip_block(&blocks[i]);
 	}
 }
 
@@ -139,7 +139,7 @@ void draw_block(component *block, char *icon, char *text) {
 	rect.height = BAR_H;
 
 	xcb_poly_fill_rectangle(conn, pm, block->bg, 1, &rect);
-	
+
 	int text_len; 
 	int icon_len;
 
@@ -175,7 +175,7 @@ static inline void connect(void) {
 	conn = XGetXCBConnection(dpy);
 	XSetEventQueueOwner(dpy, XCBOwnsEventQueue);
 	scr = xcb_setup_roots_iterator(xcb_get_setup(conn)).data;
-	
+
 	XVisualInfo xv, *res = NULL;
 	xv.depth = 32;
 	int flag = 0;
@@ -187,10 +187,10 @@ static inline void connect(void) {
 		vis_ptr = DefaultVisual(dpy, 0);
 		vis = scr->root_visual;
 	}
-	
+
 	cm = xcb_generate_id(conn);
 	xcb_create_colormap(conn, XCB_COLORMAP_ALLOC_NONE, cm, scr->root, vis);
-	
+
 	depth = (vis == scr->root_visual) ? XCB_COPY_FROM_PARENT : 32;
 }
 
@@ -209,11 +209,12 @@ static inline void create_window(void) {
 	xcb_create_window(conn, depth, bar, scr->root, BAR_X, BAR_Y, BAR_W, BAR_H, 0,
 			XCB_WINDOW_CLASS_INPUT_OUTPUT, vis, mask, vals);
 	
-	const char *names[4];
+	const char *names[5];
 	names[0] = "_NET_WM_WINDOW_TYPE";
 	names[1] = "_NET_WM_WINDOW_TYPE_DOCK";
 	names[2] = "_NET_WM_STATE";
 	names[3] = "_NET_WM_STATE_ABOVE";
+	names[4] = "_NET_WM_STATE_STICKY";
 	
 	xcb_atom_t atoms[LEN(names)];
 	xcb_intern_atom_cookie_t cookies[LEN(names)];
@@ -231,8 +232,10 @@ static inline void create_window(void) {
 	
 	xcb_change_property(conn, XCB_PROP_MODE_REPLACE, bar, atoms[0], XCB_ATOM_ATOM, 32, 1,
 			&atoms[1]);
-	xcb_change_property(conn, XCB_PROP_MODE_APPEND, bar, atoms[2], XCB_ATOM_ATOM, 32, 1,
-			&atoms[3]);
+	xcb_change_property(conn, XCB_PROP_MODE_APPEND, bar, atoms[2], XCB_ATOM_ATOM, 32, 2,
+			atoms + 3);
+
+	xcb_flush(conn);
 
 	xcb_map_window(conn, bar);
 }

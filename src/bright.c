@@ -147,8 +147,8 @@ int bright_init(component *ref) {
 
 	this->fd = xcb_get_file_descriptor(conn);
 	
-	this->fg = xft_color(0xff3b4252);
-	change_gc(this->bg, 0xff81a1c1);
+	this->fg = xft_color(DEF_FG);
+	change_gc(this->bg, DEF_BG);
 
 	draw_bright_icon();
 

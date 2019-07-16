@@ -1,0 +1,4 @@
+pass reference to init only, let components determine storage
+
+add font to blocks, split drawing icons and text
+OR utf-8 parser (better option but bruh)

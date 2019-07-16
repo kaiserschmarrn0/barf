@@ -100,8 +100,8 @@ int battery_init(component *ref) {
 	get_sys_int("/sys/class/power_supply/BAT1/energy_full", &energy);
 	energy_full += energy;
 
-	this->fg = xft_color(0xffeceff4);
-	change_gc(this->bg, 0xffbf616a);
+	this->fg = xft_color(BAT_FG);
+	change_gc(this->bg, BAT_BG);
 
 	this->fd = fd;
 
@@ -148,13 +148,13 @@ void battery_clean() {
 
 int battery_click() {
 	if (this->run == battery_run_perc) {
-		this->fg = xft_color(0xffbf616a);
-		change_gc(this->bg, 0xffeceff4);
+		this->fg = xft_color(BAT_BG);
+		change_gc(this->bg, BAT_FG);
 		battery_draw_time();
 		this->run = battery_run_time;
 	} else {
-		this->fg = xft_color(0xffeceff4);
-		change_gc(this->bg, 0xffbf616a);
+		this->fg = xft_color(BAT_FG);
+		change_gc(this->bg, BAT_BG);
 		battery_draw_perc();
 		this->run = battery_run_perc;
 	}

@@ -36,8 +36,8 @@ int clock_init(component *ref) {
 	
 	strftime(text, TEXT_MAX, "%b %d %H:%M", date);
 
-	this->fg = xft_color(0xffffffff);
-	change_gc(this->bg, 0xc03b4252);
+	this->fg = xft_color(CLOCK_FG);
+	change_gc(this->bg, CLOCK_BG);
 
 	this->fd = fd;
 
